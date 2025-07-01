@@ -64,6 +64,49 @@ class Habit {
       color: color ?? this.color,
     );
   }
+
+  Map<String, dynamic> toDatabaseMap() {
+    return {
+      'id': id,
+      'name': title,
+      'description': description ?? '',
+      'icon': '📝', // Default icon
+      'color': color,
+      'frequency': type.toString().split('.').last,
+      'target_value': targetCount,
+      'unit': 'times',
+      'start_date': createdAt.toIso8601String(),
+      'end_date': null,
+      'is_active': isActive ? 1 : 0,
+      'tags': tags.join(','),
+      'reminder_time': null,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': (updatedAt ?? createdAt).toIso8601String(),
+    };
+  }
+
+  static Habit fromDatabaseMap(Map<String, dynamic> map) {
+    return Habit(
+      id: map['id'],
+      title: map['name'],
+      description: map['description'],
+      type: HabitType.values.firstWhere(
+        (t) => t.toString().split('.').last == map['frequency'],
+        orElse: () => HabitType.daily,
+      ),
+      frequency: HabitFrequency.once, // Default frequency
+      targetCount: map['target_value'] ?? 1,
+      createdAt: DateTime.parse(map['created_at']),
+      updatedAt: map['updated_at'] != null
+          ? DateTime.parse(map['updated_at'])
+          : null,
+      isActive: map['is_active'] == 1,
+      tags: map['tags'] != null && map['tags'].isNotEmpty
+          ? map['tags'].split(',')
+          : [],
+      color: map['color'] ?? '#2196F3',
+    );
+  }
 }
 
 @JsonSerializable()

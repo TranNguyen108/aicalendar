@@ -2,28 +2,11 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'task.g.dart';
 
-enum TaskPriority {
-  low,
-  medium,
-  high,
-  urgent
-}
+enum TaskPriority { low, medium, high, urgent }
 
-enum TaskStatus {
-  pending,
-  inProgress,
-  completed,
-  cancelled
-}
+enum TaskStatus { pending, inProgress, completed, cancelled }
 
-enum TaskRepeat {
-  none,
-  daily,
-  weekly,
-  monthly,
-  yearly,
-  custom
-}
+enum TaskRepeat { none, daily, weekly, monthly, yearly, custom }
 
 @JsonSerializable()
 class Task {
@@ -105,7 +88,58 @@ class Task {
   }
 
   bool get isCompleted => status == TaskStatus.completed;
-  bool get isOverdue => dueDate != null && 
-    dueDate!.isBefore(DateTime.now()) && 
-    !isCompleted;
+  bool get isOverdue =>
+      dueDate != null && dueDate!.isBefore(DateTime.now()) && !isCompleted;
+
+  // Database operations
+  factory Task.fromDatabaseMap(Map<String, dynamic> map) {
+    return Task(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      description: map['description'] as String?,
+      priority: TaskPriority.values.firstWhere(
+        (e) => e.toString().split('.').last == (map['priority'] ?? 'medium'),
+        orElse: () => TaskPriority.medium,
+      ),
+      status: TaskStatus.values.firstWhere(
+        (e) => e.toString().split('.').last == (map['status'] ?? 'pending'),
+        orElse: () => TaskStatus.pending,
+      ),
+      dueDate: map['due_date'] != null
+          ? DateTime.parse(map['due_date'] as String)
+          : null,
+      completedAt: null, // Will be calculated from status and updated_at
+      repeat: TaskRepeat.none, // Default for now
+      tags: (map['tags'] as String? ?? '')
+          .split(',')
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      color: '#2196F3', // Default color
+      parentTaskId: map['parent_task_id'] as String?,
+      subtaskIds: [], // Will be loaded separately
+      estimatedMinutes: 0, // Default
+      actualMinutes: null,
+      createdAt: DateTime.parse(map['created_at'] as String),
+      updatedAt: map['updated_at'] != null
+          ? DateTime.parse(map['updated_at'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toDatabaseMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'due_date': dueDate?.toIso8601String(),
+      'priority': priority.toString().split('.').last,
+      'status': status.toString().split('.').last,
+      'tags': tags.join(','),
+      'is_completed': isCompleted ? 1 : 0,
+      'parent_task_id': parentTaskId,
+      'reminder_minutes': null, // Will be implemented later
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+    };
+  }
 }

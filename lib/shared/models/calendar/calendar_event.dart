@@ -92,4 +92,58 @@ class CalendarEvent {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  // Database operations
+  factory CalendarEvent.fromDatabaseMap(Map<String, dynamic> map) {
+    return CalendarEvent(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      description: map['description'] as String?,
+      startTime: DateTime.parse(map['start_time'] as String),
+      endTime: DateTime.parse(map['end_time'] as String),
+      type: EventType.values.firstWhere(
+        (e) => e.toString().split('.').last == (map['category'] ?? 'personal'),
+        orElse: () => EventType.personal,
+      ),
+      priority: EventPriority.values.firstWhere(
+        (e) => e.toString().split('.').last == (map['priority'] ?? 'medium'),
+        orElse: () => EventPriority.medium,
+      ),
+      repeat: EventRepeat.values.firstWhere(
+        (e) =>
+            e.toString().split('.').last == (map['recurrence_rule'] ?? 'none'),
+        orElse: () => EventRepeat.none,
+      ),
+      location: map['location'] as String?,
+      attendees: [],
+      tags: [],
+      color: map['color'] as String? ?? '#2196F3',
+      isAllDay: (map['is_all_day'] as int) == 1,
+      hasReminder: map['reminder_minutes'] != null,
+      reminderMinutes: map['reminder_minutes'] as int?,
+      createdAt: DateTime.parse(map['created_at'] as String),
+      updatedAt: map['updated_at'] != null
+          ? DateTime.parse(map['updated_at'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toDatabaseMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'start_time': startTime.toIso8601String(),
+      'end_time': endTime.toIso8601String(),
+      'location': location,
+      'color': color,
+      'is_all_day': isAllDay ? 1 : 0,
+      'recurrence_rule': repeat.toString().split('.').last,
+      'reminder_minutes': reminderMinutes,
+      'category': type.toString().split('.').last,
+      'priority': priority.toString().split('.').last,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+    };
+  }
 }

@@ -4,6 +4,7 @@ import '../../shared/components/common/floating_chat_widget.dart';
 import '../homepage/homepage_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../tasks/tasks_screen.dart';
+import '../notes/notes_screen.dart';
 import '../settings/settings_screen.dart';
 import '../quick_add/quick_add_screen.dart';
 
@@ -22,6 +23,7 @@ class _MainScreenState extends State<MainScreen> {
     const CalendarScreen(),
     const Placeholder(), // QuickAdd will be modal
     const TasksScreen(),
+    const NotesScreen(),
     const SettingsScreen(),
   ];
 

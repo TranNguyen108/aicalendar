@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/constants/strings/app_strings.dart';
 import '../../core/constants/colors/app_colors.dart';
 import '../../core/constants/app_constants.dart';
+import '../../shared/models/calendar/calendar_event.dart';
+import '../../shared/models/tasks/task.dart';
+import '../../shared/models/notes/note.dart';
+import '../../shared/services/database/database_service.dart';
+import '../../shared/services/notes/notes_service.dart';
 
 class QuickAddScreen extends StatefulWidget {
   const QuickAddScreen({super.key});
@@ -12,6 +18,35 @@ class QuickAddScreen extends StatefulWidget {
 
 class _QuickAddScreenState extends State<QuickAddScreen> {
   int _selectedType = 0; // 0: Event, 1: Task, 2: Note
+
+  // Controllers
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _tagsController = TextEditingController();
+
+  // Form data
+  DateTime _selectedDate = DateTime.now();
+  TimeOfDay _startTime = TimeOfDay.now();
+  TimeOfDay _endTime = TimeOfDay(
+    hour: TimeOfDay.now().hour + 1,
+    minute: TimeOfDay.now().minute,
+  );
+  String _priority = 'medium';
+
+  // Services
+  final DatabaseService _databaseService = DatabaseService();
+  final NotesService _notesService = NotesService();
+  final Uuid _uuid = const Uuid();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _tagsController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -185,6 +220,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
       child: Column(
         children: [
           TextField(
+            controller: _titleController,
             decoration: const InputDecoration(
               labelText: AppStrings.eventTitle,
               hintText: 'Nhập tiêu đề sự kiện',
@@ -192,6 +228,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
           ),
           const SizedBox(height: AppConstants.defaultPadding),
           TextField(
+            controller: _descriptionController,
             decoration: const InputDecoration(
               labelText: AppStrings.eventDescription,
               hintText: 'Mô tả sự kiện (tùy chọn)',
@@ -202,28 +239,71 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  decoration: const InputDecoration(
-                    labelText: AppStrings.startTime,
-                    suffixIcon: Icon(Icons.access_time),
+                child: GestureDetector(
+                  onTap: () => _selectTime(context, true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.grey300),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.borderRadius,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Bắt đầu: ${_startTime.format(context)}',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
-                  readOnly: true,
                 ),
               ),
               const SizedBox(width: AppConstants.defaultPadding),
               Expanded(
-                child: TextField(
-                  decoration: const InputDecoration(
-                    labelText: AppStrings.endTime,
-                    suffixIcon: Icon(Icons.access_time),
+                child: GestureDetector(
+                  onTap: () => _selectTime(context, false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.grey300),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.borderRadius,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Kết thúc: ${_endTime.format(context)}',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
-                  readOnly: true,
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppConstants.defaultPadding),
           TextField(
+            controller: _locationController,
             decoration: const InputDecoration(
               labelText: 'Địa điểm',
               hintText: 'Nhập địa điểm (tùy chọn)',
@@ -240,6 +320,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
       child: Column(
         children: [
           TextField(
+            controller: _titleController,
             decoration: const InputDecoration(
               labelText: AppStrings.taskTitle,
               hintText: 'Nhập tiêu đề nhiệm vụ',
@@ -247,6 +328,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
           ),
           const SizedBox(height: AppConstants.defaultPadding),
           TextField(
+            controller: _descriptionController,
             decoration: const InputDecoration(
               labelText: AppStrings.taskDescription,
               hintText: 'Mô tả nhiệm vụ (tùy chọn)',
@@ -254,15 +336,33 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
             maxLines: 3,
           ),
           const SizedBox(height: AppConstants.defaultPadding),
-          TextField(
-            decoration: const InputDecoration(
-              labelText: AppStrings.dueDate,
-              suffixIcon: Icon(Icons.calendar_today),
+          GestureDetector(
+            onTap: () => _selectDate(context),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.grey300),
+                borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_today,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Hạn: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ],
+              ),
             ),
-            readOnly: true,
           ),
           const SizedBox(height: AppConstants.defaultPadding),
           DropdownButtonFormField<String>(
+            value: _priority,
             decoration: const InputDecoration(labelText: AppStrings.priority),
             items: const [
               DropdownMenuItem(value: 'low', child: Text('Thấp')),
@@ -270,7 +370,11 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
               DropdownMenuItem(value: 'high', child: Text('Cao')),
               DropdownMenuItem(value: 'urgent', child: Text('Khẩn cấp')),
             ],
-            onChanged: (value) {},
+            onChanged: (value) {
+              setState(() {
+                _priority = value ?? 'medium';
+              });
+            },
           ),
         ],
       ),
@@ -282,6 +386,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
       child: Column(
         children: [
           TextField(
+            controller: _titleController,
             decoration: const InputDecoration(
               labelText: 'Tiêu đề ghi chú',
               hintText: 'Nhập tiêu đề',
@@ -289,6 +394,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
           ),
           const SizedBox(height: AppConstants.defaultPadding),
           TextField(
+            controller: _descriptionController,
             decoration: const InputDecoration(
               labelText: 'Nội dung',
               hintText: 'Nhập nội dung ghi chú',
@@ -298,6 +404,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
           ),
           const SizedBox(height: AppConstants.defaultPadding),
           TextField(
+            controller: _tagsController,
             decoration: const InputDecoration(
               labelText: AppStrings.tags,
               hintText: 'Thêm thẻ (cách nhau bằng dấu phẩy)',
@@ -309,7 +416,160 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
     );
   }
 
-  void _save() {
-    Navigator.pop(context);
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  Future<void> _selectTime(BuildContext context, bool isStartTime) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: isStartTime ? _startTime : _endTime,
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStartTime) {
+          _startTime = picked;
+          // Auto-adjust end time to be 1 hour after start time
+          _endTime = TimeOfDay(
+            hour: (picked.hour + 1) % 24,
+            minute: picked.minute,
+          );
+        } else {
+          _endTime = picked;
+        }
+      });
+    }
+  }
+
+  void _save() async {
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Vui lòng nhập tiêu đề')));
+      return;
+    }
+
+    try {
+      switch (_selectedType) {
+        case 0: // Event
+          await _saveEvent();
+          break;
+        case 1: // Task
+          await _saveTask();
+          break;
+        case 2: // Note
+          await _saveNote();
+          break;
+      }
+
+      if (mounted) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Đã lưu thành công!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      }
+    }
+  }
+
+  Future<void> _saveEvent() async {
+    final startDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _startTime.hour,
+      _startTime.minute,
+    );
+    final endDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _endTime.hour,
+      _endTime.minute,
+    );
+
+    final event = CalendarEvent(
+      id: _uuid.v4(),
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
+      startTime: startDateTime,
+      endTime: endDateTime,
+      location: _locationController.text.trim(),
+      color: '#2196F3',
+      tags: [],
+      isAllDay: false,
+      hasReminder: true,
+      reminderMinutes: 15,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _databaseService.insertEvent(event);
+  }
+
+  Future<void> _saveTask() async {
+    TaskPriority priority;
+    switch (_priority) {
+      case 'low':
+        priority = TaskPriority.low;
+        break;
+      case 'high':
+        priority = TaskPriority.high;
+        break;
+      case 'urgent':
+        priority = TaskPriority.urgent;
+        break;
+      default:
+        priority = TaskPriority.medium;
+    }
+
+    final task = Task(
+      id: _uuid.v4(),
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
+      dueDate: _selectedDate,
+      priority: priority,
+      status: TaskStatus.pending,
+      tags: [],
+      repeat: TaskRepeat.none,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _databaseService.insertTask(task);
+  }
+
+  Future<void> _saveNote() async {
+    final tags = _tagsController.text
+        .split(',')
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+
+    final note = Note(
+      id: _uuid.v4(),
+      title: _titleController.text.trim(),
+      content: _descriptionController.text.trim(),
+      tags: tags,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _notesService.createNote(note);
   }
 }
